@@ -1,0 +1,255 @@
+<?php
+
+function pum_notifications_menu() {
+  $items['portal/my-subscriptions'] = array(
+    'title' => t('My Subscriptions Preferences'),
+    'description' => 'My Subscriptions',
+    'page callback' => 'drupal_get_form',
+    'page arguments' => array('pum_notifications_my_subscriptions'),
+    'access callback' => '_pum_notifications_user_is_authenticated',
+    'file' => 'my_subscriptions.inc'
+  );
+  return $items;
+}
+
+/**
+ * Implements hook_form_alter().
+ *
+ * Alters the account edit form and hides the fields for subscribing to communities
+ * and the last and next notification
+ */
+function pum_notifications_form_user_profile_form_alter(&$form, &$form_state) {
+  $form['field_pum_country']['#access'] = false;
+  $form['field_pum_sector']['#access'] = false;
+  $form['field_pum_user_sector']['#access'] = false;
+  $form['field_pum_generic']['#access'] = false;
+  $form['field_pum_private']['#access'] = false;
+  $form['field_next_notification']['#access'] = false;
+  $form['field_follow_portal_posts']['#access'] = false;
+}
+
+/**
+ * Implements hook_form_alter().
+ *
+ * Change the comment form when it is a comment on a potral post add a button to
+ * follow/unfollow the post.
+ *
+ * @param $form
+ * @param $form_state
+ *
+ * @return mixed
+ * @throws \Exception
+ */
+function pum_notifications_form_comment_form_alter(&$form, &$form_state) {
+  global $user;
+
+  $valid_types = array('pum_forum_item', 'pum_portal_blog', 'pum_portal_document', 'pum_portal_news');
+  $node = $form['#node'];
+  if (!in_array($node->type, $valid_types)) {
+    return $form;
+  }
+
+  if (isset($form_state['input']) && isset($form_state['input']['_triggering_element_name']) && $form_state['input']['_triggering_element_name'] == 'follow') {
+    pum_notifications_follow_post($user->uid, $node->nid);
+  } elseif (isset($form_state['input']) && isset($form_state['input']['_triggering_element_name']) && $form_state['input']['_triggering_element_name'] == 'unfollow') {
+    pum_notifications_unfollow_post($user->uid, $node->nid);
+  }
+
+  $account = user_load($user->uid, true);
+  $followingPosts = _pum_notifications_flatten_entityreference_array($account->field_follow_portal_posts['und']);
+
+  $form['actions']['follow_switch']['#type'] = 'button';
+  $form['actions']['follow_switch']['#weight'] = 999;
+  $form['actions']['follow_switch']['#limit_validation_errors'] = array();
+  $form['actions']['follow_switch']['#ajax'] = array(
+    'callback' => 'pum_notifications_comment_form_follow_post_callback',
+    'wrapper' => 'edit-follow-switch-wrapper',
+    'method' => 'replace'
+  );
+  $form['actions']['follow_switch']['#prefix'] = '<div id="edit-follow-switch-wrapper">';
+  $form['actions']['follow_switch']['#suffix'] = '</div>';
+
+  if (in_array($node->nid, $followingPosts)) {
+    $form['actions']['follow_switch']['#name'] = 'unfollow';
+    $form['actions']['follow_switch']['#value'] = t('Unfollow');
+  } else {
+    $form['actions']['follow_switch']['#name'] = 'follow';
+    $form['actions']['follow_switch']['#value'] = t('Follow');
+  }
+}
+
+/**
+ * Callback for the ajax comment form.
+ *
+ * @param $form
+ * @param $form_state
+ *
+ * @return mixed
+ */
+function pum_notifications_comment_form_follow_post_callback($form, &$form_state) {
+  return $form['actions']['follow_switch'];
+}
+
+function _pum_notifications_user_is_authenticated($roles = array()) {
+  global $user;
+  if (isset($user->roles[DRUPAL_AUTHENTICATED_RID])) {
+    return true;
+  }
+  return false;
+}
+
+/**
+ * Flattens a taxonomy array
+ * The taxonomy array looks like array (
+ *   [0] => array ('tid' => 123),
+ *   [1] => array ('tid' => 456),
+ * )
+ * Converts this to
+ * array(
+ *   [0] => 123,
+ *   [1] => 456,
+ * )
+ *
+ * @param array $terms
+ * @return array
+ */
+function _pum_notifications_flatten_taxonomy_array($terms) {
+  $return = array();
+  if (!is_array($terms)) {
+    return $return;
+  }
+  foreach($terms as $selectedTerm) {
+    $return[] = $selectedTerm['tid'];
+  }
+  return $return;
+}
+
+/**
+ * Flattens a entity reference array
+ * The entity reference array looks like array (
+ *   [0] => array ('target_id' => 123),
+ *   [1] => array ('target_id' => 456),
+ * )
+ * Converts this to
+ * array(
+ *   [0] => 123,
+ *   [1] => 456,
+ * )
+ *
+ * @param array $terms
+ * @return array
+ */
+function _pum_notifications_flatten_entityreference_array($references) {
+  $return = array();
+  if (!is_array($references)) {
+    return $return;
+  }
+  foreach($references as $reference) {
+    $return[] = $reference['target_id'];
+  }
+  return $return;
+}
+
+
+/**
+ * Implements hook_mail().
+ */
+function pum_notifications_mail($key, &$message, $params) {
+  if ($key == 'notification') {
+    $message['headers']['Content-Type'] = 'text/html; charset=UTF-8; format=flowed';
+    $message['subject'] = t('PUMnet update');
+    $htmlMail = "<html><header></header>\r\n";
+    $htmlMail .= "<body style=\"font-family: Georgia,Times,Times New Roman,serif; font-size: 12pt; background-color: #eee;\">\r\n";
+    $htmlMail .= "<style>\r\n
+                    h1, h2, a { color: #FE7500; }
+                    h2 { margin-top: 0px; margin-bottom: 10px;}
+                    p { margin-top: 0px; margin-bottom: 10px;} 
+                  </style>\r\n";
+    $htmlMail .= "<div style=\"width: 400px; margin: 0px auto; background-color: #fff; padding: 10px 10px;\">\r\n";
+    $htmlMail .= "<h1>".t('PUMnet update')."</h1>\r\n";
+    $htmlMail .= $params['message'];
+    $htmlMail .= "</div>\r\n";
+    $htmlMail .= "<div style=\"width: 400px; margin: 0px auto; background-color: #fff; padding: 10px 10px;\">\r\n";
+    $htmlMail .= "<p><a href=\"".url('portal/my-subscriptions', array('absolute'=>true))."\">Update your subscription preferences</a></p>\r\n";
+    $htmlMail .= "</div>\r\n";
+    $htmlMail .= "</body></html>\r\n";
+file_put_contents('/var/www/drupal/pummail.html', $htmlMail);
+    $message['body'][] = $htmlMail;
+  }
+}
+
+
+function _pum_notification_get_term_options($vocabulary) {
+  $vocabularyObject = taxonomy_vocabulary_machine_name_load($vocabulary);
+  $terms = entity_load('taxonomy_term', FALSE, array('vid' => $vocabularyObject->vid));
+  $options = array();
+  foreach($terms as $term) {
+    $options[$term->tid] = $term->name;
+  }
+  asort($options);
+  return $options;
+}
+
+/**
+ * Function to unfollow a certain blog post, forum item, document, or portal news item.
+ *
+ * @param $uid
+ * @param $nid
+ *
+ * @throws \Exception
+ */
+function pum_notifications_unfollow_post($uid, $nid) {
+  $account = user_load($uid);
+  $account->field_follow_portal_posts['und'] = array_filter($account->field_follow_portal_posts['und'], function($reference) use ($nid) {
+    if ($reference['target_id'] == $nid) {
+      return false;
+    }
+    return true;
+  });
+  user_save($account);
+}
+
+/**
+ * Function to follow a certain blog post, forum item, document, or portal news item.
+ *
+ * @param $uid
+ * @param $nid
+ *
+ * @throws \Exception
+ */
+function pum_notifications_follow_post($uid, $nid) {
+  $account = user_load($uid);
+  $account->field_follow_portal_posts['und'][] = array('target_id' => $nid);
+  user_save($account);
+}
+
+/**
+ * Update the user account and calculate new values for next notification date.
+ *
+ * @param $account
+ *
+ * @throws \Exception
+ */
+function pum_notifications_update_next_notification($account) {
+  $defaultFrequency = "+1 day";
+  if (!isset($account->field_last_notification['und'][0]['value']) || empty($account->field_last_notification['und'][0]['value'])) {
+    $now = new DateTime();
+    $account->field_next_notification['und'][0]['value'] = $now->format('Y-m-d H:i:s');
+    $last_notification = new DateTime();
+    if (!isset($account->field_email_frequency['und'][0]['value'])) {
+      $account->field_email_frequency['und'][0]['value'] = $defaultFrequency;
+    }
+    // Calculate the last notification day by subtracting the frequency from today
+    $frequency = str_replace('+', '-', $account->field_email_frequency['und'][0]['value']);
+    $last_notification->modify($frequency);
+    $account->field_last_notification['und'][0]['value'] = $last_notification->format('Y-m-d H:i:s');
+  } else {
+    $next_notification = new DateTime($account->field_last_notification['und'][0]['value']);
+    if (!isset($account->field_email_frequency['und'][0]['value'])) {
+      $account->field_email_frequency['und'][0]['value'] = $defaultFrequency;
+    }
+    $next_notification->modify($account->field_email_frequency['und'][0]['value']);
+    $account->field_next_notification['und'][0]['value'] = $next_notification->format('Y-m-d H:i:s');
+  }
+  user_save($account);
+}
