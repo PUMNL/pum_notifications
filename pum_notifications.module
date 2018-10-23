@@ -161,19 +161,18 @@ function pum_notifications_mail($key, &$message, $params) {
     $htmlMail = "<html><header></header>\r\n";
     $htmlMail .= "<body style=\"font-family: Georgia,Times,Times New Roman,serif; font-size: 12pt; background-color: #eee;\">\r\n";
     $htmlMail .= "<style>\r\n
-                    h1, h2, a { color: #FE7500; }
-                    h2 { margin-top: 0px; margin-bottom: 10px;}
-                    p { margin-top: 0px; margin-bottom: 10px;} 
+                    h1, a { color: #FE7500; } \r\n
+                    h2 { color: #444; margin-top: 0px; margin-bottom: 10px;} \r\n
+                    p { margin-top: 0px; margin-bottom: 10px;}  \r\n
                   </style>\r\n";
     $htmlMail .= "<div style=\"width: 400px; margin: 0px auto; background-color: #fff; padding: 10px 10px;\">\r\n";
-    $htmlMail .= "<h1>".t('PUMnet update')."</h1>\r\n";
+    $htmlMail .= "<h1 style=\"color: #FE7500;\">".t('PUMnet update')."</h1>\r\n";
     $htmlMail .= $params['message'];
     $htmlMail .= "</div>\r\n";
     $htmlMail .= "<div style=\"width: 400px; margin: 0px auto; background-color: #fff; padding: 10px 10px;\">\r\n";
-    $htmlMail .= "<p><a href=\"".url('portal/my-subscriptions', array('absolute'=>true))."\">Update your subscription preferences</a></p>\r\n";
+    $htmlMail .= "<p><a href=\"".url('user/login', array('absolute'=>true, 'query' => array('destination' => 'portal/my-subscriptions')))."\">Update your subscription preferences</a></p>\r\n";
     $htmlMail .= "</div>\r\n";
     $htmlMail .= "</body></html>\r\n";
-file_put_contents('/var/www/drupal/pummail.html', $htmlMail);
     $message['body'][] = $htmlMail;
   }
 }
