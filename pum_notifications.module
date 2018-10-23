@@ -231,7 +231,7 @@ function pum_notifications_follow_post($uid, $nid) {
  * @throws \Exception
  */
 function pum_notifications_update_next_notification($account) {
-  $defaultFrequency = "+1 day";
+  $defaultFrequency = "+1 week";
   if (!isset($account->field_last_notification['und'][0]['value']) || empty($account->field_last_notification['und'][0]['value'])) {
     $now = new DateTime();
     $account->field_next_notification['und'][0]['value'] = $now->format('Y-m-d H:i:s');

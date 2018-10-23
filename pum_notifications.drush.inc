@@ -47,7 +47,7 @@ function pum_notifications_send_email() {
       // Update the account to store the last and next notification day.
       $last_notification = new DateTime();
       $account->field_last_notification['und'][0]['value'] = $last_notification->format('Y-m-d H:i:s');
-      //pum_notifications_update_next_notification($account);
+      pum_notifications_update_next_notification($account);
       $account = null;
     }
   }
