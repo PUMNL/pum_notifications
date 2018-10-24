@@ -131,6 +131,7 @@ function pum_notifications_my_subscriptions_submit($form, &$form_state) {
   user_save($account);
   pum_notifications_update_next_notification($account);
   drupal_set_message(t('Successfully updated your subscription preferences'));
+  $form_state['redirect'] = 'portal';
 }
 
 function pum_notifications_following_posts_callback($form, &$form_state) {
