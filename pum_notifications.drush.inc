@@ -11,8 +11,10 @@ function pum_notifications_drush_command() {
 
 function pum_notifications_send_email() {
   global $user;
+  $is_debug = drush_get_option('debug', false);
+
   $original_user = clone $user;
-  drupal_set_message(t('Send PUMnet e-mails'));
+  drush_print('Start sending e-mails');
 
   $query = db_query("SELECT u.uid FROM {users} u WHERE u.status = '1' AND u.uid NOT IN (SELECT entity_id FROM field_data_field_next_notification WHERE entity_type = 'user')");
   if ($query->execute()) {
@@ -32,16 +34,19 @@ function pum_notifications_send_email() {
   $query->fieldCondition('field_next_notification', 'value', $now->format('Y-m-d'), '<');
   $query->propertyCondition('status', '1');
   $users = $query->execute();
+  $count = 0;
   if (isset($users['user'])) {
     foreach($users['user'] as $uid => $u) {
       $user = clone $original_user;
       $account = user_load($uid, true);
+      _pum_notifications_check_account_fields($account);
       $user = $account;
       $items = pum_notifications_get_items_for_user($account);
       if ($items) {
         $orderedItems = pum_notifications_order_items($items, $account);
         $mailMessage = pum_notifications_format_mail($orderedItems, $account);
         drupal_mail('pum_notifications', 'notification', $account->mail, user_preferred_language($account), array('message' => $mailMessage));
+        $count++;
       }
 
       // Update the account to store the last and next notification day.
@@ -51,6 +56,7 @@ function pum_notifications_send_email() {
       $account = null;
     }
   }
+  drush_print('Send '.$count.' e-mails');
 }
 
 function pum_notifications_format_mail($orderedItems, $account) {

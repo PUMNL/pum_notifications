@@ -24,8 +24,6 @@ function pum_notifications_form_user_profile_form_alter(&$form, &$form_state) {
   $form['field_pum_user_sector']['#access'] = false;
   $form['field_pum_generic']['#access'] = false;
   $form['field_pum_private']['#access'] = false;
-  $form['field_next_notification']['#access'] = false;
-  $form['field_follow_portal_posts']['#access'] = false;
 }
 
 /**
@@ -251,4 +249,30 @@ function pum_notifications_update_next_notification($account) {
     $account->field_next_notification['und'][0]['value'] = $next_notification->format('Y-m-d H:i:s');
   }
   user_save($account);
+}
+
+/**
+ * This function makes sure the neccesary fields on the account object have an array starting with 'und'.
+ *
+ * @param $account
+ */
+function _pum_notifications_check_account_fields(&$account) {
+  if (!isset($account->field_pum_country['und'])) {
+    $account->field_pum_country['und'] = array();
+  }
+  if (!isset($account->field_pum_sector['und'])) {
+    $account->field_pum_sector['und'] = array();
+  }
+  if (!isset($account->field_pum_generic['und'])) {
+    $account->field_pum_generic['und'] = array();
+  }
+  if (!isset($account->field_follow_portal_posts['und'])) {
+    $account->field_follow_portal_posts['und'] = array();
+  }
+  if (!isset($account->field_pum_private['und'])) {
+    $account->field_pum_private['und'] = array();
+  }
+  if (!isset($account->field_pum_user_sector['und'])) {
+    $account->field_pum_user_sector['und'] = array();
+  }
 }

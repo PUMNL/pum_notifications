@@ -12,24 +12,7 @@ function pum_notifications_my_subscriptions($form, &$form_state) {
   $account = user_load($user->uid, true);
   $form_state['account'] = $account;
 
-  if (!isset($account->field_pum_country['und'])) {
-    $account->field_pum_country['und'] = array();
-  }
-  if (!isset($account->field_pum_sector['und'])) {
-    $account->field_pum_sector['und'] = array();
-  }
-  if (!isset($account->field_pum_generic['und'])) {
-    $account->field_pum_generic['und'] = array();
-  }
-  if (!isset($account->field_follow_portal_posts['und'])) {
-    $account->field_follow_portal_posts['und'] = array();
-  }
-  if (!isset($account->field_pum_private['und'])) {
-    $account->field_pum_private['und'] = array();
-  }
-  if (!isset($account->field_pum_user_sector['und'])) {
-    $account->field_pum_user_sector['und'] = array();
-  }
+  _pum_notifications_check_account_fields($account);
 
   $countries = _pum_notification_get_term_options('countries');
   $selectedCoutries = _pum_notifications_flatten_taxonomy_array($account->field_pum_country['und']);
