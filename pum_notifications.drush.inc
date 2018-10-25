@@ -31,7 +31,7 @@ function pum_notifications_send_email() {
 
   $query = new EntityFieldQuery();
   $query->entityCondition('entity_type', 'user');
-  $query->fieldCondition('field_next_notification', 'value', $now->format('Y-m-d'), '<');
+  $query->fieldCondition('field_next_notification', 'value', $now->format('Y-m-d H:i:s'), '<=');
   $query->propertyCondition('status', '1');
   $users = $query->execute();
   $count = 0;

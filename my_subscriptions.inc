@@ -64,11 +64,13 @@ function pum_notifications_my_subscriptions($form, &$form_state) {
   if (count($followingPosts)) {
     $followingPostNodes = node_load_multiple($followingPosts);
     foreach ($followingPostNodes as $node) {
+      $nodeUrl = url('node/'.$node->nid, array('absolute' => true));
       $form['following_posts']['remove_'.$node->nid]['#type'] = 'button';
       $form['following_posts']['remove_'.$node->nid]['#name'] = 'unfollow_'.$node->nid;
-      $form['following_posts']['remove_'.$node->nid]['#value'] = t('Un follow');
+      $form['following_posts']['remove_'.$node->nid]['#value'] = t('Unfollow');
       $form['following_posts']['remove_'.$node->nid]['#description'] = $node->title;
-      $form['following_posts']['remove_'.$node->nid]['#prefix'] = $node->title.'&nbsp;';
+      $form['following_posts']['remove_'.$node->nid]['#prefix'] = "<p><a href=\"{$nodeUrl}\">{$node->title}</a>&nbsp;";
+      $form['following_posts']['remove_'.$node->nid]['#suffix'] = '</p>';
       $form['following_posts']['remove_'.$node->nid]['#ajax'] = array(
         'callback' => 'pum_notifications_following_posts_callback',
         'wrapper' => 'edit-following-posts',
