@@ -250,7 +250,7 @@ function pum_notifications_get_items_for_user($account) {
 
   // Get new comments on forum topics I started
   $myForumPosts = pum_notifications_get_nodes_posted_by_user($account->uid, 'pum_forum_item');
-  $myForumPosts = $myForumPosts + pum_notifications_get_nodes_with_a_comment_per_user($account->uid, 'pum_forum_item');
+  $myForumPosts = array_merge($myForumPosts, pum_notifications_get_nodes_with_a_comment_per_user($account->uid, 'pum_forum_item'));
   $items = $items + pum_notifications_get_new_comments($account, $myForumPosts, $since, $items);
 
   // Get new comments on items I follow
