@@ -64,11 +64,7 @@ function pum_notifications_my_subscriptions($form, &$form_state) {
   if (count($followingPosts)) {
     $followingPostNodes = node_load_multiple($followingPosts);
     foreach ($followingPostNodes as $node) {
-      $link = '';
-      if ($node->language != 'en') {
-        $link = $node->language.'/';
-      }
-      $link .= drupal_get_path_alias('node/' . $node->nid, $node->language);
+      $link = drupal_get_path_alias('node/' . $node->nid);
       $nodeUrl = url($link, array('absolute' => true));
       $form['following_posts']['remove_'.$node->nid]['#type'] = 'button';
       $form['following_posts']['remove_'.$node->nid]['#name'] = 'unfollow_'.$node->nid;
