@@ -52,7 +52,9 @@ function pum_notifications_send_email() {
       // Update the account to store the last and next notification day.
       $last_notification = new DateTime();
       $account->field_last_notification['und'][0]['value'] = $last_notification->format('Y-m-d H:i:s');
-      pum_notifications_update_next_notification($account);
+      if (!$is_debug) {
+        pum_notifications_update_next_notification($account);
+      }
       $account = null;
     }
   }
@@ -147,6 +149,10 @@ function pum_notifications_order_items($items, $account) {
     foreach($items as $item) {
       if (in_array($country, $item['country'])) {
         $countryItems[] = $item;
+        // Remove item from following posts.
+        if (($key = array_search($item['nid'], $followingPosts)) !== false) {
+          unset($followingPosts[$key]);
+        }
       }
     }
     if (count($countryItems)) {
@@ -158,6 +164,10 @@ function pum_notifications_order_items($items, $account) {
     foreach($items as $item) {
       if (in_array($sector, $item['sector'])) {
         $sectorItems[] = $item;
+        // Remove item from following posts.
+        if (($key = array_search($item['nid'], $followingPosts)) !== false) {
+          unset($followingPosts[$key]);
+        }
       }
     }
     if (count($sectorItems)) {
@@ -170,6 +180,10 @@ function pum_notifications_order_items($items, $account) {
     foreach($items as $item) {
       if (in_array($generalCommunity, $item['generic'])) {
         $genericItems[] = $item;
+        // Remove item from following posts.
+        if (($key = array_search($item['nid'], $followingPosts)) !== false) {
+          unset($followingPosts[$key]);
+        }
       }
     }
     if (count($genericItems)) {
@@ -181,6 +195,10 @@ function pum_notifications_order_items($items, $account) {
     foreach($items as $item) {
       if (in_array($private, $item['private'])) {
         $privateItems[] = $item;
+        // Remove item from following posts.
+        if (($key = array_search($item['nid'], $followingPosts)) !== false) {
+          unset($followingPosts[$key]);
+        }
       }
     }
     if (count($privateItems)) {
@@ -299,6 +317,7 @@ function pum_notifications_get_items_per_bundle_per_term($account, $bundle, $sin
   if (is_array($skipNids) && count($skipNids)) {
     $query->propertyCondition('nid', $skipNids, 'NOT IN');
   }
+  $query->addTag('DANGEROUS_ACCESS_CHECK_OPT_OUT'); // Bypass access checks in this query.
   $results = $query->execute();
   if (isset($results['node'])) {
     $nodes = node_load_multiple(array_keys($results['node']));
@@ -318,12 +337,17 @@ function pum_notifications_get_items_per_bundle_per_term($account, $bundle, $sin
       if (!isset($node->field_pum_private['und']) || !is_array($node->field_pum_private['und'])) {
         $node->field_pum_private['und'] = array();
       }
+      $link = '';
+      if ($node->language != 'en') {
+        $link = $node->language.'/';
+      }
+      $link .= drupal_get_path_alias('node/' . $node->nid, $node->language);
       $item = array(
         'nid' => $node->nid,
         'bundle' => $node->type,
         'title' => $node->title,
         'date' => $changed->format('Y-m-d'),
-        'link' => url('user/login', array('absolute' => true, 'query' => array('destination' => drupal_get_path_alias('node/' . $node->nid, $node->language)))),
+        'link' => url('user/login', array('absolute' => true, 'query' => array('destination' => $link))),
         'author' => $author->name,
         'sector' => _pum_notifications_flatten_taxonomy_array($node->field_pum_sector['und']),
         'country' => _pum_notifications_flatten_taxonomy_array($node->field_pum_country['und']),
@@ -367,6 +391,7 @@ function pum_notifications_get_new_comments($account, $nidsToCheck, $since, $ski
   $query->propertyCondition('created', $since->getTimestamp(), '>');
   $query->propertyCondition('nid', $nidsToCheck, 'IN');
   $query->propertyCondition('uid', $account->uid, '!=');
+  $query->addTag('DANGEROUS_ACCESS_CHECK_OPT_OUT'); // Bypass access checks in this query.
   $results = $query->execute();
   if (isset($results['comment'])) {
     $comments = comment_load_multiple(array_keys($results['comment']));
@@ -388,12 +413,17 @@ function pum_notifications_get_new_comments($account, $nidsToCheck, $since, $ski
         if (!isset($node->field_pum_private['und']) || !is_array($node->field_pum_private['und'])) {
           $node->field_pum_private['und'] = [];
         }
+        $link = '';
+        if ($node->language != 'en') {
+          $link = $node->language.'/';
+        }
+        $link .= drupal_get_path_alias('node/' . $node->nid, $node->language);
         $item = [
           'nid' => $node->nid,
           'bundle' => $node->type,
           'title' => $node->title,
           'date' => $changed->format('Y-m-d'),
-          'link' => url('user/login', array('absolute' => true, 'query' => array('destination' => drupal_get_path_alias('node/' . $node->nid, $node->language)))),
+          'link' => url('user/login', array('absolute' => true, 'query' => array('destination' => $link))),
           'author' => $author->name,
           'sector' => _pum_notifications_flatten_taxonomy_array($node->field_pum_sector['und']),
           'country' => _pum_notifications_flatten_taxonomy_array($node->field_pum_country['und']),
@@ -425,6 +455,7 @@ function pum_notifications_get_nodes_posted_by_user($uid, $bundle) {
   $query->entityCondition('bundle', $bundle);
   $query->propertyCondition('status', '1');
   $query->propertyCondition('uid', $uid);
+  $query->addTag('DANGEROUS_ACCESS_CHECK_OPT_OUT'); // Bypass access checks in this query.
   $results = $query->execute();
   if (isset($results['node'])) {
     return array_keys($results['node']);
@@ -445,6 +476,7 @@ function pum_notifications_get_nodes_with_a_comment_per_user($uid, $bundle) {
   $query->entityCondition('entity_type', 'comment');
   $query->propertyCondition('status', '1');
   $query->propertyCondition('uid', $uid);
+  $query->addTag('DANGEROUS_ACCESS_CHECK_OPT_OUT'); // Bypass access checks in this query.
   $results = $query->execute();
   if (isset($results['comment'])) {
     $comments = comment_load_multiple(array_keys($results['comment']));
@@ -459,6 +491,7 @@ function pum_notifications_get_nodes_with_a_comment_per_user($uid, $bundle) {
     $query->entityCondition('bundle', $bundle);
     $query->propertyCondition('status', '1');
     $query->propertyCondition('nid', $nids, 'IN');
+    $query->addTag('DANGEROUS_ACCESS_CHECK_OPT_OUT'); // Bypass access checks in this query.
     $results = $query->execute();
     if (isset($results['node'])) {
       return array_keys($results['node']);
