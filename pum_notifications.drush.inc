@@ -5,23 +5,27 @@ function pum_notifications_drush_command() {
     'description' => t('Send PUMnet notifications.'),
     'callback' => 'pum_notifications_send_email',
     'aliases' => array(),
+    'options' => array(
+      'only-user-uid' => 'Process only one user and pass the UID of the user to this command. Usefull for testing/development',
+    )
   );
   return $items;
 }
 
 function pum_notifications_send_email() {
-  global $user;
   $is_debug = drush_get_option('debug', false);
+  $only_user_uid = drush_get_option('only-user-uid', false);
 
-  $original_user = clone $user;
   drush_print('Start sending e-mails');
 
-  $query = db_query("SELECT u.uid FROM {users} u WHERE u.status = '1' AND u.uid NOT IN (SELECT entity_id FROM field_data_field_next_notification WHERE entity_type = 'user')");
-  if ($query->execute()) {
-    while($uid = $query->fetchAssoc()) {
-      $account = user_load($uid['uid']);
-      pum_notifications_update_next_notification($account);
-      $account = null;
+  if (!$is_debug) {
+    $query = db_query("SELECT u.uid FROM {users} u WHERE u.status = '1' AND u.uid NOT IN (SELECT entity_id FROM field_data_field_next_notification WHERE entity_type = 'user')");
+    if ($query->execute()) {
+      while ($uid = $query->fetchAssoc()) {
+        $account = user_load($uid['uid']);
+        pum_notifications_update_next_notification($account);
+        $account = NULL;
+      }
     }
   }
 
@@ -33,17 +37,22 @@ function pum_notifications_send_email() {
   $query->entityCondition('entity_type', 'user');
   $query->fieldCondition('field_next_notification', 'value', $now->format('Y-m-d H:i:s'), '<=');
   $query->propertyCondition('status', '1');
+  if ($only_user_uid) {
+    $query->propertyCondition('uid', $only_user_uid);
+  }
   $users = $query->execute();
   $count = 0;
   if (isset($users['user'])) {
     foreach($users['user'] as $uid => $u) {
-      $user = clone $original_user;
       $account = user_load($uid, true);
       _pum_notifications_check_account_fields($account);
-      $user = $account;
-      $items = pum_notifications_get_items_for_user($account);
+      $myOwnPosts = pum_notifications_get_my_own_posts($account);
+      $items = pum_notifications_get_items_for_user($account, $myOwnPosts);
+      if ($is_debug) {
+        echo "Processing UID: " . $uid . "\r\n";
+      }
       if ($items) {
-        $orderedItems = pum_notifications_order_items($items, $account);
+        $orderedItems = pum_notifications_order_items($items, $account, $myOwnPosts);
         $mailMessage = pum_notifications_format_mail($orderedItems, $account);
         drupal_mail('pum_notifications', 'notification', $account->mail, user_preferred_language($account), array('message' => $mailMessage));
         $count++;
@@ -95,6 +104,10 @@ function pum_notifications_format_mail($orderedItems, $account) {
     $message .= "<h2>" . t('Following posts') . "</h2>\r\n";
     $message .= pum_notifications_format_items($orderedItems['following']);
   }
+  if (isset($orderedItems['own_posts']) && is_array($orderedItems['own_posts']) && count($orderedItems['own_posts'])) {
+    $message .= "<h2>" . t('My posts') . "</h2>\r\n";
+    $message .= pum_notifications_format_items($orderedItems['own_posts']);
+  }
   return $message;
 }
 
@@ -132,7 +145,7 @@ function pum_notifications_format_items($items) {
   return $string;
 }
 
-function pum_notifications_order_items($items, $account) {
+function pum_notifications_order_items($items, $account, $myOwnPosts) {
   $orderedItems = array();
   $userCoutries = _pum_notifications_flatten_taxonomy_array($account->field_pum_country['und']);
   $userSectors = _pum_notifications_flatten_taxonomy_array($account->field_pum_sector['und']);
@@ -213,10 +226,25 @@ function pum_notifications_order_items($items, $account) {
       }
     }
   }
+  foreach($myOwnPosts as $nid) {
+    foreach($items as $item) {
+      if ($item['nid'] == $nid) {
+        $orderedItems['own_posts'][] = $item;
+      }
+    }
+  }
   return $orderedItems;
 }
 
-function pum_notifications_get_items_for_user($account) {
+function pum_notifications_get_my_own_posts($account) {
+  // Get new comments on forum topics I started
+  $myOwnPosts = pum_notifications_get_nodes_posted_by_user($account->uid, 'pum_portal_blog');
+  $myOwnPosts = array_merge($myOwnPosts, pum_notifications_get_nodes_posted_by_user($account->uid, 'pum_forum_item'));
+  $myOwnPosts = array_merge($myOwnPosts, pum_notifications_get_nodes_with_a_comment_per_user($account->uid, 'pum_forum_item', $myOwnPosts));
+  return  $myOwnPosts;
+}
+
+function pum_notifications_get_items_for_user($account, $myOwnPosts) {
   $since = new DateTime($account->field_last_notification['und'][0]['value']);
 
   $coutryCommunities = _pum_notifications_flatten_taxonomy_array($account->field_pum_country['und']);
@@ -262,15 +290,8 @@ function pum_notifications_get_items_for_user($account) {
   $items = $items +pum_notifications_get_items_per_bundle_per_term($account,'pum_portal_news', $since, 'field_pum_generic', $generalCommunities, array_keys($items));
   $items = $items +pum_notifications_get_items_per_bundle_per_term($account,'pum_portal_news', $since, 'field_pum_private', $userPrivateCommunities, array_keys($items));
 
-  // Get new comments on blogs I have written
-  $myBlogs = pum_notifications_get_nodes_posted_by_user($account->uid, 'pum_portal_blog');
-  $items = $items + pum_notifications_get_new_comments($account, $myBlogs, $since, $items);
-
-  // Get new comments on forum topics I started
-  $myForumPosts = pum_notifications_get_nodes_posted_by_user($account->uid, 'pum_forum_item');
-  $myForumPosts = array_merge($myForumPosts, pum_notifications_get_nodes_with_a_comment_per_user($account->uid, 'pum_forum_item'));
-  $items = $items + pum_notifications_get_new_comments($account, $myForumPosts, $since, $items);
-
+  // Get new comments on blogs I have written, on my forum  posts, or on comments  on comments I have made.
+  $items = $items + pum_notifications_get_new_comments($account, $myOwnPosts, $since, $items);
   // Get new comments on items I follow
   $followingPosts = _pum_notifications_flatten_entityreference_array($account->field_follow_portal_posts['und']);
   $items = $items + pum_notifications_get_new_comments($account, $followingPosts, $since, $items);
@@ -468,10 +489,11 @@ function pum_notifications_get_nodes_posted_by_user($uid, $bundle) {
  *
  * @param $uid
  * @param $bundle
+ * @param $skipNids
  *
  * @return array
  */
-function pum_notifications_get_nodes_with_a_comment_per_user($uid, $bundle) {
+function pum_notifications_get_nodes_with_a_comment_per_user($uid, $bundle, $skipNids=array()) {
   $query = new EntityFieldQuery();
   $query->entityCondition('entity_type', 'comment');
   $query->propertyCondition('status', '1');
@@ -480,21 +502,25 @@ function pum_notifications_get_nodes_with_a_comment_per_user($uid, $bundle) {
   $results = $query->execute();
   if (isset($results['comment'])) {
     $comments = comment_load_multiple(array_keys($results['comment']));
-    $nids = array();
-    foreach($comments as $comment) {
-      $nids[] = $comment->nid;
+    $nids = [];
+    foreach ($comments as $comment) {
+      if (!in_array($comment->nid, $skipNids)) {
+        $nids[] = $comment->nid;
+      }
     }
 
-    // Now check whether the nodes are of the correct bundle
-    $query = new EntityFieldQuery();
-    $query->entityCondition('entity_type', 'node');
-    $query->entityCondition('bundle', $bundle);
-    $query->propertyCondition('status', '1');
-    $query->propertyCondition('nid', $nids, 'IN');
-    $query->addTag('DANGEROUS_ACCESS_CHECK_OPT_OUT'); // Bypass access checks in this query.
-    $results = $query->execute();
-    if (isset($results['node'])) {
-      return array_keys($results['node']);
+    if (count($nids)) {
+      // Now check whether the nodes are of the correct bundle
+      $query = new EntityFieldQuery();
+      $query->entityCondition('entity_type', 'node');
+      $query->entityCondition('bundle', $bundle);
+      $query->propertyCondition('status', '1');
+      $query->propertyCondition('nid', $nids, 'IN');
+      $query->addTag('DANGEROUS_ACCESS_CHECK_OPT_OUT'); // Bypass access checks in this query.
+      $results = $query->execute();
+      if (isset($results['node'])) {
+        return array_keys($results['node']);
+      }
     }
   }
   return array();
