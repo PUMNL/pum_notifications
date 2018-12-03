@@ -50,7 +50,11 @@ function pum_notifications_follow_form($form, &$form_state) {
   }
 
   $account = user_load($user->uid, true);
-  $followingPosts = _pum_notifications_flatten_entityreference_array($account->field_follow_portal_posts['und']);
+  $followingPosts = array();
+
+  if(!empty($account->field_follow_portal_posts['und'])) {
+    $followingPosts = _pum_notifications_flatten_entityreference_array($account->field_follow_portal_posts['und']);
+  }
 
   $form['actions']['follow_switch']['#type'] = 'button';
   $form['actions']['follow_switch']['#weight'] = 999;

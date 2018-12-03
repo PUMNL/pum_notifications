@@ -87,6 +87,8 @@ function pum_notifications_my_subscriptions($form, &$form_state) {
   $form['frequency_settings']['frequency']['#type'] = 'select';
   $form['frequency_settings']['frequency']['#options'] = $frequencyField['settings']['allowed_values'];
   $form['frequency_settings']['frequency']['#default_value'] = $account->field_email_frequency['und'][0]['value'];
+  $form['frequency_settings']['frequency_description']['#type'] = 'markup';
+  $form['frequency_settings']['frequency_description']['#markup'] = t('If you change the frequency, you might get one last e-mail from the previous frequency period.');
 
   $form['submit']['#type'] = 'submit';
   $form['submit']['#value'] = t('Update your subscription settings');

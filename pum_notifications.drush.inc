@@ -36,6 +36,13 @@ function pum_notifications_send_email() {
   $query = new EntityFieldQuery();
   $query->entityCondition('entity_type', 'user');
   $query->fieldCondition('field_next_notification', 'value', $now->format('Y-m-d H:i:s'), '<=');
+  /*
+  Do not send e-mail to people with e-mail frequency 'Never'
+  Because we currently use a the value of email_frequency to timestamp for next notification we check the e-mail frequency for not having a timestamp for over +10 years
+  While this solution is clumsy, within that time period we are almost certain that we don't use it anymore.
+  Otherwise we have to revise it near that time.
+  */
+  $query->fieldCondition('field_email_frequency', 'value', '+10 years', '<>');
   $query->propertyCondition('status', '1');
   if ($only_user_uid) {
     $query->propertyCondition('uid', $only_user_uid);
