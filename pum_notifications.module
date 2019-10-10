@@ -2,12 +2,15 @@
 
 function pum_notifications_menu() {
   $items['portal/my-subscriptions'] = array(
-    'title' => t('My Subscriptions Preferences'),
+    'title' => t('My Subscriptions'),
     'description' => 'My Subscriptions',
     'page callback' => 'drupal_get_form',
     'page arguments' => array('pum_notifications_my_subscriptions'),
     'access callback' => '_pum_notifications_user_is_authenticated',
-    'file' => 'my_subscriptions.inc'
+    'file' => 'my_subscriptions.inc',
+    'menu_name' => 'menu-my-profile',
+    'weight' => 10
+
   );
   return $items;
 }
